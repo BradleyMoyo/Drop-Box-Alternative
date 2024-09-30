@@ -1,0 +1,75 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Dropbox Replica</title>
+</head>
+<body>
+    <h1>Simple Dropbox Replica</h1>
+
+
+    <!-- File Upload Form -->
+    <form id="upload-form" enctype="multipart/form-data">
+        <input type="file" id="file-input" name="file" required>
+        <button type="submit">Upload File</button>
+    </form>
+
+
+    <h2>Uploaded Files:</h2>
+    <div id="file-list"></div>
+
+
+    <script>
+        const uploadForm = document.getElementById('upload-form');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+
+
+        // Handle file upload
+        uploadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const file = fileInput.files[0];
+           
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+
+                try {
+                    const response = await fetch('http://localhost:8080/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) {
+                        alert('File uploaded successfully!');
+                        loadFiles();
+                    } else {
+                        alert('Failed to upload file');
+                    }
+                } catch (error) {
+                    console.error('Error uploading file:', error);
+                    alert('Error uploading file');
+                }
+            }
+        });
+
+
+        // Load and display the list of uploaded files
+        async function loadFiles() {
+            try {
+                const response = await fetch('http://localhost:8080/files');
+                const html = await response.text();
+                fileList.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading files:', error);
+            }
+        }
+
+
+        // Load files when the page loads
+        loadFiles();
+    </script>
+</body>
+</html>
