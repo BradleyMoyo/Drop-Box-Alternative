@@ -1,0 +1,115 @@
+import http.server
+import os
+import cgi
+import shutil
+
+
+# Directory to store uploaded files
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+class SimpleDropboxHandler(http.server.BaseHTTPRequestHandler):
+   # Handle GET request (for file download and listing)
+   def do_GET(self):
+       if self.path == '/files':
+           self.list_files()
+       elif self.path.startswith('/download/'):
+           self.serve_file()
+       else:
+           self.send_error(404, "Endpoint not found")
+
+
+   # Handle POST request (for file upload)
+   def do_POST(self):
+       if self.path == '/upload':
+           self.upload_file()
+       else:
+           self.send_error(404, "Endpoint not found")
+
+
+   # Handle OPTIONS request for CORS
+   def do_OPTIONS(self):
+       # CORS headers for OPTIONS request (preflight)
+       self.send_response(200)
+       self.send_header('Access-Control-Allow-Origin', '*')
+       self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+       self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+       self.end_headers()
+
+
+   # List available files for download
+   def list_files(self):
+       files = os.listdir(UPLOAD_DIR)
+       response_content = "<h2>Available Files:</h2><ul>"
+       for filename in files:
+           response_content += f'<li><a href="/download/{filename}">{filename}</a></li>'
+       response_content += "</ul>"
+
+
+       self.send_response(200)
+       self.send_header('Access-Control-Allow-Origin', '*')  # CORS header
+       self.send_header('Content-type', 'text/html')
+       self.end_headers()
+       self.wfile.write(response_content.encode('utf-8'))
+
+
+   # Serve a requested file for download
+   def serve_file(self):
+       filepath = self.path.split("/download/")[-1]
+       file_path = os.path.join(UPLOAD_DIR, filepath)
+
+
+       if os.path.exists(file_path):
+           self.send_response(200)
+           self.send_header('Access-Control-Allow-Origin', '*')  # CORS header
+           self.send_header('Content-Type', 'application/octet-stream')
+           self.send_header('Content-Disposition', f'attachment; filename="{filepath}"')
+           self.end_headers()
+
+
+           with open(file_path, 'rb') as file:
+               shutil.copyfileobj(file, self.wfile)
+       else:
+           self.send_error(404, "File not found")
+
+
+   # Handle file upload using cgi.FieldStorage
+   def upload_file(self):
+       # Add CORS headers
+       self.send_response(200)
+       self.send_header('Access-Control-Allow-Origin', '*')  # CORS header
+       self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+       self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+       self.end_headers()
+
+
+       content_type = self.headers['Content-Type']
+       if 'multipart/form-data' in content_type:
+           # Use cgi.FieldStorage to handle file upload
+           form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={'REQUEST_METHOD': 'POST'})
+           uploaded_file = form['file']
+
+
+           if uploaded_file.filename:
+               # Save file to disk
+               file_path = os.path.join(UPLOAD_DIR, uploaded_file.filename)
+               with open(file_path, 'wb') as f:
+                   f.write(uploaded_file.file.read())
+               self.wfile.write(b"File uploaded successfully")
+           else:
+               self.send_error(400, "No file uploaded")
+       else:
+           self.send_error(400, "Invalid form data")
+
+
+# Set up and start the server
+def run(server_class=http.server.HTTPServer, handler_class=SimpleDropboxHandler, port=8080):
+   server_address = ('', port)
+   httpd = server_class(server_address, handler_class)
+   print(f"Server running on port {port}")
+   httpd.serve_forever()
+
+
+if __name__ == "__main__":
+   run()
